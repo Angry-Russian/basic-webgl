@@ -1,0 +1,656 @@
+<html>
+<head>
+	
+
+	<!--
+		==========================================================
+		Definition des objets/fonctions mathematiques
+		(separes pour faciliter la gestion du code dans l'editeur)
+	-->
+	<script type="text/javascript" language="javascript">
+		(function(){	"use strict";
+			// ============================================================
+			// Mat4 objects are for storing 4x4 transformation matrices.
+			// To create a new instance, use the new keyword:
+			//    var matrix4x4_a = new Mat4();
+			// Internally, the matrix is stored as a 16-element array M in column-major form,
+			// where M[0], M[4], M[8], M[12] is the first row of the matrix,
+			// and M[0], M[1], M[2], M[3] is the first column.
+			// ============================================================
+			window.Mat4 = (function(){
+				function Mat4() {
+					this.M = [];
+				}
+				Mat4.prototype = {
+					// Performs a deep copy of the given matrix.
+					copy : function( other ) {
+						this.M = other.M.slice(); // creates a deep copy of the array
+					},
+
+					// returns the product of the matrix with the given 3D vector
+					multVec3 : function( v ) {
+						return new Vec3(
+							// We treat the vector as if
+							// its (homogeneous) 4th component is zero.
+							this.M[ 0]*v.x + this.M[ 4]*v.y + this.M[ 8]*v.z,
+							this.M[ 1]*v.x + this.M[ 5]*v.y + this.M[ 9]*v.z,
+							this.M[ 2]*v.x + this.M[ 6]*v.y + this.M[10]*v.z
+						);
+					}
+				};
+
+				// A static method that returns the product of two 4x4 matrices a and b
+				Mat4.mult = function( a, b ) {
+					var m = new Mat4();
+					m.M = [
+						a.M[ 0]*b.M[ 0] + a.M[ 4]*b.M[ 1] + a.M[ 8]*b.M[ 2] + a.M[12]*b.M[ 3],
+						a.M[ 1]*b.M[ 0] + a.M[ 5]*b.M[ 1] + a.M[ 9]*b.M[ 2] + a.M[13]*b.M[ 3],
+						a.M[ 2]*b.M[ 0] + a.M[ 6]*b.M[ 1] + a.M[10]*b.M[ 2] + a.M[14]*b.M[ 3],
+						a.M[ 3]*b.M[ 0] + a.M[ 7]*b.M[ 1] + a.M[11]*b.M[ 2] + a.M[15]*b.M[ 3],
+
+						a.M[ 0]*b.M[ 4] + a.M[ 4]*b.M[ 5] + a.M[ 8]*b.M[ 6] + a.M[12]*b.M[ 7],
+						a.M[ 1]*b.M[ 4] + a.M[ 5]*b.M[ 5] + a.M[ 9]*b.M[ 6] + a.M[13]*b.M[ 7],
+						a.M[ 2]*b.M[ 4] + a.M[ 6]*b.M[ 5] + a.M[10]*b.M[ 6] + a.M[14]*b.M[ 7],
+						a.M[ 3]*b.M[ 4] + a.M[ 7]*b.M[ 5] + a.M[11]*b.M[ 6] + a.M[15]*b.M[ 7],
+
+						a.M[ 0]*b.M[ 8] + a.M[ 4]*b.M[ 9] + a.M[ 8]*b.M[10] + a.M[12]*b.M[11],
+						a.M[ 1]*b.M[ 8] + a.M[ 5]*b.M[ 9] + a.M[ 9]*b.M[10] + a.M[13]*b.M[11],
+						a.M[ 2]*b.M[ 8] + a.M[ 6]*b.M[ 9] + a.M[10]*b.M[10] + a.M[14]*b.M[11],
+						a.M[ 3]*b.M[ 8] + a.M[ 7]*b.M[ 9] + a.M[11]*b.M[10] + a.M[15]*b.M[11],
+
+						a.M[ 0]*b.M[12] + a.M[ 4]*b.M[13] + a.M[ 8]*b.M[14] + a.M[12]*b.M[15],
+						a.M[ 1]*b.M[12] + a.M[ 5]*b.M[13] + a.M[ 9]*b.M[14] + a.M[13]*b.M[15],
+						a.M[ 2]*b.M[12] + a.M[ 6]*b.M[13] + a.M[10]*b.M[14] + a.M[14]*b.M[15],
+						a.M[ 3]*b.M[12] + a.M[ 7]*b.M[13] + a.M[11]*b.M[14] + a.M[15]*b.M[15]
+					];
+					return m;
+				};
+
+				// A static method that returns the identity matrix
+				Mat4.identity = function() {
+					var m = new Mat4();
+					m.M = [
+						1, 0, 0, 0,
+						0, 1, 0, 0,
+						0, 0, 1, 0,
+						0, 0, 0, 1
+					];
+					return m;
+				};
+
+				// A static method that returns a uniform scale matrix
+				Mat4.uniformScale = function(s) {
+					var m = new Mat4();
+					m.M = [
+						s, 0, 0, 0,
+						0, s, 0, 0,
+						0, 0, s, 0,
+						0, 0, 0, 1
+					];
+					return m;
+				};
+
+				// A static method that returns a translation matrix
+				// computed from the given 3D translation vector
+				Mat4.translation = function( v ) {
+					var m = new Mat4();
+					m.M[ 0] = 1; m.M[ 4] = 0; m.M[ 8] = 0; m.M[12] = v.x;
+					m.M[ 1] = 0; m.M[ 5] = 1; m.M[ 9] = 0; m.M[13] = v.y;
+					m.M[ 2] = 0; m.M[ 6] = 0; m.M[10] = 1; m.M[14] = v.z;
+					m.M[ 3] = 0; m.M[ 7] = 0; m.M[11] = 0; m.M[15] = 1;
+					return m;
+				};
+
+				// A static method that returns a rotation matrix
+				// computed from the given axis and angle
+				Mat4.rotationAroundOrigin = function( axis, angle_in_radians ) {
+					var m = new Mat4();
+					var c = Math.cos( angle_in_radians );
+					var s = Math.sin( angle_in_radians );
+					var one_minus_c = 1-c;
+					m.M[ 0] = c + one_minus_c * axis.x*axis.x;
+					m.M[ 5] = c + one_minus_c * axis.y*axis.y;
+					m.M[10] = c + one_minus_c * axis.z*axis.z;
+					m.M[ 1] = m.M[ 4] = one_minus_c * axis.x*axis.y;
+					m.M[ 2] = m.M[ 8] = one_minus_c * axis.x*axis.z;
+					m.M[ 6] = m.M[ 9] = one_minus_c * axis.y*axis.z;
+					var xs = axis.x * s;
+					var ys = axis.y * s;
+					var zs = axis.z * s;
+					m.M[ 1] += zs;  m.M[ 4] -= zs;
+					m.M[ 2] -= ys;  m.M[ 8] += ys;
+					m.M[ 6] += xs;  m.M[ 9] -= xs;
+
+					m.M[12] = 0;
+					m.M[13] = 0;
+					m.M[14] = 0;
+					m.M[ 3] = 0; m.M[ 7] = 0; m.M[11] = 0; m.M[15] = 1;
+					return m;
+				};
+
+				// A static method that returns a rotation matrix
+				// computed from the given axis and angle
+				Mat4.rotationAroundPoint = function( axis, angle_in_radians, center ) {
+					return Mat4.mult(
+						Mat4.mult(
+							Mat4.translation( center ),
+							Mat4.rotationAroundOrigin( axis, angle_in_radians )
+						),
+						Mat4.translation( Vec3.negate( center ) )
+					);
+				};
+				return Mat4;
+			})();
+
+			// ============================================================
+			// Vec3 objects are for storing 3D points and 3D vectors.
+			// To create a new instance, use the new keyword:
+			//    var vector_a = new Vec3();
+			//    var vector_b = new Vec3(x,y,z);
+			// These objects are mutable. After an instance has been created,
+			// its coordinates can be changed by writing directly to data members:
+			//    vector_a.x = 10;
+			//    vector_a.y = 2;
+			//    vector_a.z = -5;
+			// ============================================================
+			window.Vec3 = (function(){
+				function Vec3(x=0,y=0,z=0) {
+					this.x = x;
+					this.y = y;
+					this.z = z;
+				}
+				Vec3.prototype = {
+					// Performs a deep copy.
+					copy : function(other) {
+						this.x = other.x; this.y = other.y; this.z = other.z;
+					},
+
+					// Returns the negation of the vector.
+					negate : function() { return new Vec3(-this.x,-this.y,-this.z); },
+
+					// Returns the Euclidean length (also called magnitude or L2-norm) of the vector.
+					norm : function() { return Math.sqrt( this.x*this.x + this.y*this.y + this.z*this.z ); },
+
+					// Returns the squared length.
+					// This is useful when the caller needs to compare
+					// the length of a vector to a pre-defined threshold,
+					// or compare the lengths of two vectors:
+					// in such cases, comparing the squared length is sufficient,
+					// and saves a square root operation.
+					normSquared : function() { return this.x*this.x + this.y*this.y + this.z*this.z; },
+
+					// Returns a normalized vector of unit length.
+					normalize : function() {
+						var n = this.norm();
+						if ( n > 0 ) {
+							var k = 1.0/n;
+							return new Vec3( k*this.x, k*this.y, k*this.z );
+						}
+						return new Vec3();
+					},
+
+					indexOfLargestComponent : function() {
+						var X = Math.abs(this.x);
+						var Y = Math.abs(this.y);
+						var Z = Math.abs(this.z);
+						if ( X > Y ) {
+							if ( X > Z ) return 0;
+							else return 2;
+						}
+						else {
+							if ( Y > Z ) return 1;
+							else return 2;
+						}
+					}
+				};
+
+				// A static method that returns the sum of two vectors.
+				Vec3.sum = function( v1, v2 ) {
+					return new Vec3( v1.x+v2.x, v1.y+v2.y, v1.z+v2.z );
+				};
+				// A static method that returns the difference of two vectors.
+				Vec3.diff = function( v1, v2 ) {
+					return new Vec3( v1.x-v2.x, v1.y-v2.y, v1.z-v2.z );
+				};
+				// A static method that returns the product of a vector with a scalar.
+				Vec3.mult = function( v, k ) {
+					return new Vec3( k*v.x, k*v.y, k*v.z );
+				};
+				// A static method that returns the dot product of two vectors
+				Vec3.dot = function( v1, v2 ) {
+					return v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
+				};
+				// A static method that returns the cross product of two vectors
+				Vec3.cross = function( v1, v2 ) {
+					return new Vec3(
+						v1.y*v2.z - v1.z*v2.y,
+						v1.z*v2.x - v1.x*v2.z,
+						v1.x*v2.y - v1.y*v2.x
+					);
+				};
+				// A static method that returns the centroid of two vectors
+				Vec3.average = function( v1, v2 ) {
+					return new Vec3( (v1.x+v2.x)*0.5, (v1.y+v2.y)*0.5, (v1.z+v2.z)*0.5 );
+				};
+				return Vec3;
+			})();
+
+
+			// ============================================================
+			// Ray3 objects are for storing 3D rays.
+			// To create a new instance, use the new keyword:
+			//    var ray = new Ray3();
+			// ============================================================
+			window.Ray3 = (function(){
+				function Ray3 ( vec3_origin = null, vec3_direction = null ) {
+					this.origin = new Vec3();
+					this.direction = new Vec3();
+					if ( vec3_origin !== null && vec3_direction !== null ) {
+						this.origin.copy( vec3_origin );
+						this.direction.copy( vec3_direction );
+					}
+				};
+				Ray3.prototype = {
+					point : function(t) { return Vec3.sum(this.origin, Vec3.mult(this.direction,t) ); }
+				};
+				return Ray3;
+			})();
+		})();
+	</script>
+
+	<!--
+		========================
+		Definition des objets 3D
+	-->
+	<script type="text/javascript" language="javascript">
+		const Cube3DMesh = (function(){
+			var _instance;
+			
+			function createInstance(gl){ // singleton for containing mesh data
+				if(_instance)  return;
+				var vertices = new Float32Array([
+					//x,  y,  z,
+					// facing
+					0.5, 0.5, 0.5,   0.5, -.5, 0.5,   -.5, 0.5, 0.5,
+					0.5, -.5, 0.5,   -.5, -.5, 0.5,   -.5, 0.5, 0.5,
+					
+					// back
+					0.5, 0.5, -.5,   -.5, 0.5, -.5,   -.5, -.5, -.5,
+					0.5, 0.5, -.5,   -.5, -.5, -.5,   0.5, -.5, -.5,
+					
+					// our left
+					-.5, 0.5, -.5,   -.5, 0.5, 0.5,   -.5, -.5, 0.5,
+					-.5, -.5, 0.5,   -.5, -.5, -.5,   -.5, 0.5, -.5,
+					
+					// our right
+					0.5, -.5, 0.5,   0.5, 0.5, 0.5,   0.5, 0.5, -.5,
+					0.5, 0.5, -.5,   0.5, -.5, -.5,   0.5, -.5, 0.5,
+					
+					// top
+					0.5, 0.5, 0.5,   -.5, 0.5, 0.5,   -.5, 0.5, -.5,
+					-.5, 0.5, -.5,   0.5, 0.5, -.5,   0.5, 0.5, 0.5,
+					
+					// bottom
+					0.5, -.5, 0.5,   0.5, -.5, -.5,   -.5, -.5, -.5,
+					-.5, -.5, -.5,   -.5, -.5, 0.5,   0.5, -.5, 0.5,
+				]);
+				
+				var cubeVertices = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertices);
+				gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+				cubeVertices.itemSize = 3;
+				cubeVertices.numItems = vertices.length/3;
+				_instance = cubeVertices;
+			}
+			
+			return {
+				initialize: function(gl){
+					createInstance(gl);
+					
+				}, getInstance: function getInstance_Cube3DMeshInstance(){
+					return _instance;
+				}
+			};
+		})();
+		/**
+		 *
+		 * Creates a basic 3D cube with draw(gl, matrixStack) and update(neighbors) methods
+		 * @param {WebGLRenderingContext} gl WebGL context with which the vertex buffer will be created if needed.
+		 * @param {ShaderProgram} shader compiled ShaderProgram used with this object. Make sure that it matches the attributes in draw().
+		 * @param {float} scale size of the cube
+		 * @return {[type]}
+		 */
+		const Cube3D = (function(){
+			function Cube(gl, shader, position, scale){
+
+				Cube3DMesh.initialize(gl);
+				
+				this.mesh = Cube3DMesh.getInstance() || null;
+				this.mvMatrix = Mat4.identity();
+				this.shader = shader || null;
+				this.scale = scale || 1;
+				this.color = [0, 1, 0, 1];
+				this.borderColor = [1, 0, 0, 1];
+				this.rotation = new Vec3(0,0,0);
+				this.torque = new Vec3(0,0,0);
+				this.position = position || new Vec3(0,0,0);
+				this.velocity = new Vec3(0,0,0);
+				this.acceleration = new Vec3(0,0,0);
+				this.force = new Vec3(0,0,0);
+				this.mass = 1;
+			};
+
+			Cube.prototype.update = function(neighbors){
+				
+				this.acceleration = Vec3.sum(this.acceleration, this.force);
+				this.velocity = Vec3.sum(this.velocity, this.acceleration);
+				this.position = Vec3.sum(this.position, this.velocity);
+				//this.rotation = Vec3.sum(this.rotation, this.torque);
+				
+				this.mvMatrix = Mat4.identity();
+				this.mvMatrix = Mat4.mult(this.mvMatrix, Mat4.translation(this.position)); // translate
+				this.mvMatrix = Mat4.mult(this.mvMatrix, Mat4.uniformScale(this.scale)); // scale
+				this.mvMatrix = Mat4.mult(this.mvMatrix, Mat4.rotationAroundOrigin(new Vec3(0, 0, 1), this.rotation.z));
+				this.mvMatrix = Mat4.mult(this.mvMatrix, Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), this.rotation.y));
+				this.mvMatrix = Mat4.mult(this.mvMatrix, Mat4.rotationAroundOrigin(new Vec3(1, 0, 0), this.rotation.x));
+				
+				return this;
+			};
+
+			Cube.prototype.draw = function(gl, matrixStack){
+				
+				var compoundPosition = Mat4.identity();
+				
+				if(matrixStack) for(var i = 0; i<matrixStack.length; i++){
+					compoundPosition = Mat4.mult(compoundPosition, matrixStack[i]);
+				}
+
+				gl.useProgram(this.shader);
+				gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh);
+				gl.vertexAttribPointer(this.shader.vertexPositionAttribute, this.mesh.itemSize, gl.FLOAT, false, 0, 0);
+				gl.enableVertexAttribArray(this.shader.vertexPositionAttribute);
+				gl.uniformMatrix4fv(this.shader.mvMatrixUniform, false, Mat4.mult(compoundPosition, this.mvMatrix).M);
+				gl.uniform1f(this.shader.borderScale, 1.5/this.scale/100);
+				gl.uniform4fv(this.shader.color, new Float32Array(this.color));
+				gl.uniform4fv(this.shader.borderColor, new Float32Array(this.highlighted ? this.highlightedBorderColor : this.borderColor));
+				gl.drawArrays(gl.TRIANGLES, 0, this.mesh.numItems);
+
+				return this;
+			};
+			return Cube;
+		})();
+	</script>
+</head>
+<body>
+<canvas style="border: 1px dashed silver"></canvas>
+
+<!--
+	=======================================================
+	Shaders (vertex et fragment) pour objets et pour skybox
+-->
+<script id="vShader" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform vec4 uFaceColor;
+
+	varying vec4 vPos;
+	varying vec4 vColor;
+
+    void main(void) {
+		vPos = vec4(aVertexPosition, 1.0);
+		vColor = uFaceColor;
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_PointSize = 3.0;
+    }
+</script>
+<script id="fShader" type="x-shader/x-fragment">
+    precision highp float;
+
+    uniform float ufBorderScale;
+    uniform vec4 uBorderColor;
+
+	varying vec4 vPos;
+    varying vec4 vColor;
+	
+    void main(void) {
+
+		float n;
+		float m;
+		float x = abs(vPos.x);
+		float y = abs(vPos.y);
+		float z = abs(vPos.z);
+
+		m = max(min(x, y), min(y, z));
+		m = max(m, min(x, z));
+		m = floor(m + .5 + ufBorderScale);
+
+		gl_FragColor = (1.0 - m) * vColor +  m * uBorderColor;
+    }
+</script>
+
+</script>
+
+<!--
+	===================================
+	Definition du comportement logiciel
+-->
+<script type="text/javascript" language="javascript">
+	(function(){
+
+		var startDate = new Date(),
+			fov = 60, // degrees
+			near = 1, // in openGL units
+			far = 10, // in openGL units
+			depthOfField= .4,
+			isDrawing = false,
+			cameraProjection,
+			cameraRotation,
+			stagePosition,
+			stageRotation,
+			stageScale,
+			objectsToRender = [],
+			canvas = document.querySelector('#myCanvas'),
+			gl = canvas.getContext('experimental-webgl'),
+			boxShader = createShader(gl, '#vShader', '#fShader'); // lire et compiler les shaders a partir du script GLSL imbrique dans le code html;
+
+		canvas.width = 800;
+		canvas.height = 600;
+
+		gl.enable(gl.DEPTH_TEST);
+		gl.depthFunc(gl.LESS);
+		gl.clearColor(.5, .5, .5, 1.0);
+
+		resetCamera();
+		initializeScene(gl);
+
+		var drawLoop = setInterval(redraw, 1000/60); // call redraw() 60 times per second
+		// TODO: make a more sophisticated render handler.
+
+		/**
+		 * (Re-)Creates default camera and stage matrices
+		 * @return {null}
+		 */
+		function resetCamera(){
+			cameraProjection = new Mat4();
+			cameraProjection.M = createCamera(fov/180*Math.PI, canvas.width / canvas.height, near, far, depthOfField);
+
+			cameraRotation = Mat4.rotationAroundOrigin(new Vec3(1, 0, 0), Math.PI/6 * 0); // plongee de la camera
+			stagePosition = Mat4.translation(new Vec3(0, -1, -3));
+			stageRotation = Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), Math.PI/4 * 1);
+			stageScale = Mat4.uniformScale(0.85);
+		};
+		/**
+		 * Initializes scene, creates VertexBuffers if needed and 
+		 * @param {WebGlRenderingContext} gl gl context provided by canvas.getContext('experimental-webgl')
+		 * @return	{null}
+		 */
+		function initializeScene(gl){
+
+			clearInterval(drawLoop);
+			while(isDrawing){
+				// wait for drawing to end
+			}
+
+			for(var i in objectsToRender)
+				delete objectsToRender[i];
+			
+			objectsToRender.length = 0;
+
+			for ( var xi=0; xi<3; xi++ ) {
+				for ( var zi=0; zi<3; zi++ ) {
+					var x = xi*1.5 - 1.5;
+					var y = (xi===1 ? 1.5 : 0) + (zi===1 ? 1.5 : 0);
+					var z = zi*1.5 - 1.5;
+
+					var c = new Cube3D(gl, boxShader, new Vec3(x, y, z), 0.95); // scale, shader
+					c.color = generateColorHSL(.33, 1, 0.5);
+					c.borderColor = generateColorHSL(0, .15, 0.25);
+					c.highlightedBorderColor = generateColorHSL(0, .5, 0.5);
+
+					objectsToRender.push(c);
+
+					if ( xi!==1 || zi!==1 ) {
+						// create small cube
+						y = 3;
+
+						c = new Cube3D(gl, boxShader, new Vec3(x, y, z), 1/12); // scale, shader
+						c.color = generateColorHSL(.33, 1, 0.5);
+						c.borderColor = generateColorHSL(0, .15, 0.25);
+						c.highlightedBorderColor = generateColorHSL(0, .5, 0.5);
+
+						objectsToRender.push(c);
+
+					}//*/
+				}
+			}
+		};
+		/**
+		 * Draws current scene, using objects stored in the global objectsToRender variable
+		 * @return {null}
+		 */
+		function redraw(){
+			isDrawing = true;
+
+			// update viewport in case of changes
+			gl.viewportWidth = canvas.width;
+			gl.viewportHeight = canvas.height;
+			gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT /*| gl.STENSIL_BUFFER_BIT*/);
+
+			gl.uniformMatrix4fv(boxShader.pMatrixUniform, false,  cameraProjection.M);
+
+			stageRotation = Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), Math.PI/6 * (new Date() - startDate)/1000 * 0);
+
+			for(var o of objectsToRender){
+				o.update().draw(gl, [cameraRotation, stagePosition, stageRotation, stageScale]);
+			}
+
+			isDrawing = false;
+		};
+		/**
+		 * Reads HTML elements with ids matching the provided vertexId (for vertex shader) and fragmentId (for fragment shader) and returns compiled ShaderProgram
+		 * @param {WebGLRenderingContext} gl WebGL context used for creating shaders
+		 * @param {string} vertexId Finds matching HTML element by Id and reads its GLSL code
+		 * @param {string} fragmentId Finds matching HTML element by Id and reads its GLSL code
+		 * @return {ShaderProgram}
+		 */
+		function createShader(gl, vertexId, fragmentId){
+			var shaderProgram = gl.createProgram();
+
+			// lire et compiler vertex shader
+			if(vertexId && document.querySelector(vertexId)){
+				var vShader = gl.createShader(gl.VERTEX_SHADER)
+				gl.shaderSource(vShader, document.querySelector(vertexId).innerText);
+				gl.compileShader(vShader);
+				gl.attachShader(shaderProgram, vShader);
+			}
+
+			// lire et compiler fragment shader
+			if(vertexId && document.querySelector(fragmentId)){
+				var fShader = gl.createShader(gl.FRAGMENT_SHADER)
+				gl.shaderSource(fShader, document.querySelector(fragmentId).innerText);
+				gl.compileShader(fShader);
+				gl.attachShader(shaderProgram, fShader);
+			}
+
+			// attacher le shader a WebGL
+			gl.linkProgram(shaderProgram);
+			gl.useProgram(shaderProgram);
+
+			// Memoriser les Memory Locations des valeures uniformes.
+			shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, 'uPMatrix');
+			shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, 'uMVMatrix');
+			shaderProgram.borderScale = gl.getUniformLocation(shaderProgram, "ufBorderScale");
+			shaderProgram.color = gl.getUniformLocation(shaderProgram, "uFaceColor");
+			shaderProgram.borderColor = gl.getUniformLocation(shaderProgram, "uBorderColor");
+			shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+
+			return shaderProgram;
+		};
+		/**
+		 * Creates basic projection matrix for camera
+		 * @param {float} f Field of View in degrees
+		 * @param {float} a aspect ratio of target display
+		 * @param {float} near near clipping plane
+		 * @param {float} far far clipping plane
+		 * @param {float} dof depth of field (effect of Z distance)
+		 * @return {Array(16)}
+		 */
+		function createCamera(f, a, near, far, dof) {
+
+			f = 1.0 / Math.tan(f / 2);
+			var rangeInv = 1 / (near - far);
+			return [
+				f,   0,                     0,         0,
+				0, f*a,                     0,         0,
+				0,   0,        far * rangeInv, -(dof||1),
+				0,   0, near * far * rangeInv,         5
+			];
+		};
+		/**
+		 * Converts HSLA into RGBA
+		 * @param {float} h hue, [0,1]
+		 * @param {float} s saturation, [0,1]
+		 * @param {float} l luminosity [0,1]
+		 * @param {float} a alpha [0,1]
+		 * @return {Array(4)}
+		 */
+		function generateColorHSL(h, s, l, a){
+			var r, g, b;
+
+			if(s == 0){
+		        r = g = b = l; // achromatic
+		    }else{
+		    	var hue2rgb = function hue2rgb(p, q, t){
+		    		if(t < 0) t += 1;
+		    		if(t > 1) t -= 1;
+		    		if(t < 1/6) return p + (q - p) * 6 * t;
+		    		if(t < 1/2) return q;
+		    		if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+		    		return p;
+		    	}
+
+		    	var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+		    	var p = 2 * l - q;
+		    	r = hue2rgb(p, q, h + 1/3);
+		    	g = hue2rgb(p, q, h);
+		    	b = hue2rgb(p, q, h - 1/3);
+		    }
+
+		    return [r, g, b, a||1];
+		}
+
+		// uncomment for debugging
+		/*
+		window.gl = gl;
+		window.resetCamera = resetCamera;
+		window.initializeScene = initializeScene;
+		window.redraw = redraw;//*/
+
+	})();
+</script>
+
+</body>
+</html>
