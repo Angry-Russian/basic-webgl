@@ -430,8 +430,6 @@
     }
 </script>
 
-</script>
-
 <!--
 	===================================
 	Definition du comportement logiciel
@@ -451,7 +449,7 @@
 			stageRotation,
 			stageScale,
 			objectsToRender = [],
-			canvas = document.querySelector('#myCanvas'),
+			canvas = document.querySelector('canvas'),
 			gl = canvas.getContext('experimental-webgl'),
 			boxShader = createShader(gl, '#vShader', '#fShader'); // lire et compiler les shaders a partir du script GLSL imbrique dans le code html;
 
