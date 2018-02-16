@@ -1,6 +1,6 @@
 <html>
 <head>
-	
+	<meta charset="utf-8">
 
 	<!--
 		==========================================================
@@ -255,6 +255,42 @@
 				};
 				return Ray3;
 			})();
+
+
+			// ============================================================
+			// Color objects are for storing colors with RGB and RGBA components.
+			// To create a new instance, use the new keyword:
+			//    var color1 = new Color(r,g,b); // r,g,b are between 0.0 and 1.0
+			//    var color2 = new Color(r,g,b,a); // a is also between 0.0 and 1.0
+			// ============================================================
+			window.Color = (function(){
+				function Color(r,g,b,a=1) {
+					this.r = r;
+					this.g = g;
+					this.b = b;
+					this.a = a;
+				}
+				Color.prototype = {
+					// Returns the corresponding string
+					toString : function() {
+						var components = [ Math.floor(this.r*255), Math.floor(this.g*255), Math.floor(this.b*255) ];
+						if ( this.a < 1 ) {
+							components.push( this.a );
+							return "rgba("+components.join()+")";
+						}
+						return "rgb("+components.join()+")";
+					}
+				};
+				Color.prototype.toArray = function(){
+					return [this.r, this.g, this.b, this.a];
+				}
+				// A static method that returns the product of a color with a scalar.
+				Color.mult = function( v, k ) {
+					return new Color( k*v.r, k*v.g, k*v.b, v.a );
+				};
+				return Color;
+			})();
+
 		})();
 	</script>
 
@@ -264,6 +300,7 @@
 	-->
 	<script type="text/javascript" language="javascript">
 		const Cube3DMesh = (function(){
+			"use strict";
 			var _instance;
 			
 			function createInstance(gl){ // singleton for containing mesh data
@@ -321,6 +358,7 @@
 		 * @return {[type]}
 		 */
 		const Cube3D = (function(){
+			"use strict";
 			function Cube(gl, shader, position, scale){
 
 				Cube3DMesh.initialize(gl);
@@ -329,21 +367,21 @@
 				this.mvMatrix = Mat4.identity();
 				this.shader = shader || null;
 				this.scale = scale || 1;
-				this.color = [0, 1, 0, 1];
-				this.borderColor = [1, 0, 0, 1];
+				this.color = new Color(0, 1, 0, 1);
+				this.borderColor = new Color(1, 0, 0, 1);
 				this.rotation = new Vec3(0,0,0);
-				this.torque = new Vec3(0,0,0);
+				//this.torque = new Vec3(0,0,0);
 				this.position = position || new Vec3(0,0,0);
 				this.velocity = new Vec3(0,0,0);
-				this.acceleration = new Vec3(0,0,0);
-				this.force = new Vec3(0,0,0);
-				this.mass = 1;
+				//this.acceleration = new Vec3(0,0,0);
+				//this.force = new Vec3(0,0,0);
+				//this.mass = 1;
 			};
 
 			Cube.prototype.update = function(neighbors){
 				
-				this.acceleration = Vec3.sum(this.acceleration, this.force);
-				this.velocity = Vec3.sum(this.velocity, this.acceleration);
+				//this.acceleration = Vec3.sum(this.acceleration, this.force);
+				//this.velocity = Vec3.sum(this.velocity, this.acceleration);
 				this.position = Vec3.sum(this.position, this.velocity);
 				//this.rotation = Vec3.sum(this.rotation, this.torque);
 				
@@ -371,17 +409,37 @@
 				gl.enableVertexAttribArray(this.shader.vertexPositionAttribute);
 				gl.uniformMatrix4fv(this.shader.mvMatrixUniform, false, Mat4.mult(compoundPosition, this.mvMatrix).M);
 				gl.uniform1f(this.shader.borderScale, 1.5/this.scale/100);
-				gl.uniform4fv(this.shader.color, new Float32Array(this.color));
-				gl.uniform4fv(this.shader.borderColor, new Float32Array(this.highlighted ? this.highlightedBorderColor : this.borderColor));
+				gl.uniform4fv(this.shader.color, new Float32Array(this.color.toArray()));
+				gl.uniform4fv(this.shader.borderColor, new Float32Array(this.highlighted ? this.highlightedBorderColor.toArray() : this.borderColor.toArray()));
 				gl.drawArrays(gl.TRIANGLES, 0, this.mesh.numItems);
 
 				return this;
 			};
 			return Cube;
 		})();
+
+		const Camera3D = (function(){
+			"use strict";
+			function Camera3D(){
+
+			};
+
+			Camera3D.prototype.method_name = function(first_argument) {
+				// body...
+			};
+
+			return Camera3D;
+		})();
+
 	</script>
 </head>
 <body>
+
+Ctrl+Left: orbit camera <br/>
+Ctrl+Right: translate camera left/right/up/down <br/>
+Ctrl+Left+Right: translate camera forward/backward <br/>
+Left: move box within plane of face under cursor<br/>
+
 <canvas style="border: 1px dashed silver"></canvas>
 <br/>
 <label><input type='checkbox' id="pers" checked>Perspective projection</label>
@@ -448,6 +506,8 @@
 <script type="text/javascript" language="javascript">
 	(function(){
 
+		"use strict";
+		
 		var startDate = new Date(),
 			fov = 60, // degrees
 			near = 1, // in openGL units
@@ -456,12 +516,20 @@
 			isDrawing = false,
 			cameraProjection,
 			cameraRotation,
-			stagePosition,
 			stageRotation,
-			stageScale,
+			stageScale = Mat4.uniformScale(1),
+			stageRotationAngle = {x:0, y:0},
+			color_fill = new Color(0,1,0,1),
 			objectsToRender = [],
+			cameraPosition = new Vec3(0, 0, -2.5),
 			canvas = document.querySelector('canvas'),
 			gl = canvas.getContext('experimental-webgl'),
+			drawAxes = document.querySelector("#axes").checked,
+			drawTarget = document.querySelector("#targ").checked,
+			sortPolygons = document.querySelector("#sort").checked,
+			cullBackfaces = document.querySelector("#cull").checked,
+			drawWireframe = document.querySelector("#wire").checked,
+			fillFrontfaces = document.querySelector("#fill").checked,
 			boxShader = createShader(gl, '#vShader', '#fShader'); // lire et compiler les shaders a partir du script GLSL imbrique dans le code html;
 
 		canvas.width = 800;
@@ -470,7 +538,7 @@
 		gl.enable(gl.DEPTH_TEST);
 		gl.depthFunc(gl.LESS);
 		gl.clearColor(1.0, 1.0, 1.0, 1.0);
-		gl.frontFace(gl.CW)
+		gl.frontFace(gl.CCW)
 
 		resetCamera();
 		setInputs();
@@ -488,8 +556,7 @@
 			cameraProjection = new Mat4();
 			cameraProjection.M = createCamera(fov/180*Math.PI, canvas.width / canvas.height, near, far, perspective?depthOfField:0);
 
-			cameraRotation = Mat4.rotationAroundOrigin(new Vec3(1, 0, 0), Math.PI/6 * 0); // plongee de la camera
-			stagePosition = Mat4.translation(new Vec3(0, -1, -3));
+			cameraRotation = Mat4.rotationAroundOrigin(new Vec3(1, 0, 0), Math.PI/6 * 0); 
 			stageRotation = Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), Math.PI/4 * 1);
 			stageScale = Mat4.uniformScale(0.85);
 		};
@@ -513,11 +580,11 @@
 			for ( var xi=0; xi<3; xi++ ) {
 				for ( var zi=0; zi<3; zi++ ) {
 					var x = xi*1.5 - 1.5;
-					var y = (xi===1 ? 1.5 : 0) + (zi===1 ? 1.5 : 0);
-					var z = zi*1.5 - 1.5;
+					var y = (xi===1 ? 1.5 : 0) + (zi===1 ? 1.5 : 0) - 1.5;
+					var z = zi*1.5;
 
 					var c = new Cube3D(gl, boxShader, new Vec3(x, y, z), 0.95); // scale, shader
-					c.color = generateColorHSL(.33, 1, 0.5);
+					c.color = color_fill;//generateColorHSL(.33, 1, 0.5);
 					c.borderColor = generateColorHSL(0, .15, 0.25);
 					c.highlightedBorderColor = generateColorHSL(0, .5, 0.5);
 
@@ -525,10 +592,10 @@
 
 					if ( xi!==1 || zi!==1 ) {
 						// create small cube
-						y = 3;
+						y = 1.5;
 
 						c = new Cube3D(gl, boxShader, new Vec3(x, y, z), 1/12); // scale, shader
-						c.color = generateColorHSL(.33, 1, 0.5);
+						c.color = color_fill;//generateColorHSL(.33, 1, 0.5);
 						c.borderColor = generateColorHSL(0, .15, 0.25);
 						c.highlightedBorderColor = generateColorHSL(0, .5, 0.5);
 
@@ -551,12 +618,28 @@
 			gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
 			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT /*| gl.STENSIL_BUFFER_BIT*/);
 
+			if(cullBackfaces){
+				gl.enable(gl.CULL_FACE);
+				gl.cullFace(gl.FRONT); // TODO: reverse cube vertex declaration order to make Left-Handed
+			}else gl.disable(gl.CULL_FACE);
+
+			if(color_fill.a < 1){
+				gl.enable(gl.BLEND);
+				gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_DST_ALPHA);
+				gl.disable(gl.DEPTH_TEST);
+				// TODO: sort cubes by depth
+			}else{
+				gl.disable(gl.BLEND);
+				gl.enable(gl.DEPTH_TEST);
+			}
+
 			gl.uniformMatrix4fv(boxShader.pMatrixUniform, false,  cameraProjection.M);
 
-			stageRotation = Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), Math.PI/6 * (new Date() - startDate)/1000 * 1);
-
+			stageRotation = Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), stageRotationAngle.x);
+			stageRotation = Mat4.mult(Mat4.rotationAroundOrigin(new Vec3(1, 0, 0), stageRotationAngle.y), stageRotation)
+			var cameraPositionMatrix = Mat4.translation(cameraPosition);
 			for(var o of objectsToRender){
-				o.update().draw(gl, [cameraRotation, stagePosition, stageRotation, stageScale]);
+				o.update().draw(gl, [cameraRotation, cameraPositionMatrix, stageRotation, stageScale]);
 			}
 
 			isDrawing = false;
@@ -651,7 +734,7 @@
 		    	b = hue2rgb(p, q, h - 1/3);
 		    }
 
-		    return [r, g, b, a||1];
+		    return new Color(r, g, b, a||1);
 		}
 
 		/**
@@ -663,14 +746,48 @@
 			document.querySelector("#cull").onchange = function(){ cullBackfaces = this.checked; }
 			document.querySelector("#wire").onchange = function(){ drawWireframe = this.checked; }
 			document.querySelector("#fill").onchange = function(){ fillFrontfaces = this.checked; }
-			document.querySelector("#tran").onchange = function(){ color_fill = new Color(0,1,0,this.checked?0.5:1.0); }
+			document.querySelector("#tran").onchange = function(){ color_fill.a = this.checked?0.5:1.0; }
 			document.querySelector("#sort").onchange = function(){ sortPolygons = this.checked; }
 			document.querySelector("#axes").onchange = function(){ drawAxes = this.checked; }
 			document.querySelector("#targ").onchange = function(){ drawTarget = this.checked; }
 
+			var dragging = false;
+			canvas.onmousemove = function(e){
+				if(dragging){
+					if(e.ctrlKey) switch(e.buttons){
+						case 1 :
+							stageRotationAngle.x += e.movementX / canvas.width * 5;
+							stageRotationAngle.y += e.movementY / canvas.height * 5;
+							return false;
+						break;
+						case 2 :
+							cameraPosition.x += e.movementX / canvas.width * 4;
+							cameraPosition.y -= e.movementY / canvas.height * 4;
+							return false;
+						break;
+						case 3 :
+							cameraPosition.z -= e.movementY / canvas.height * 4;
+						break;
+						default : console.log("Unknown button combination", e.buttons);
+					} else {
+						// TODO: grab and move box
+					}
+				}
+			};
+			canvas.onmousedown = function(e){
+				e.preventDefault();
+				dragging = true;
+				return false;
+			};
+			canvas.onmouseup = function(e){
+				e.preventDefault();
+				dragging = false;
+				return false;
+			};
+			canvas.oncontextmenu = ()=>false;
 		}
 		// uncomment for debugging
-		/*
+		
 		window.gl = gl;
 		window.resetCamera = resetCamera;
 		window.initializeScene = initializeScene;
