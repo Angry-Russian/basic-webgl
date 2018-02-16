@@ -470,6 +470,7 @@
 		gl.enable(gl.DEPTH_TEST);
 		gl.depthFunc(gl.LESS);
 		gl.clearColor(1.0, 1.0, 1.0, 1.0);
+		gl.frontFace(gl.CW)
 
 		resetCamera();
 		setInputs();
