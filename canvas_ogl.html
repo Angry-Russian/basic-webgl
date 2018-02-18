@@ -308,28 +308,29 @@
 				var vertices = new Float32Array([
 					//x,  y,  z,
 					// facing
-					0.5, 0.5, 0.5,   0.5, -.5, 0.5,   -.5, 0.5, 0.5,
-					0.5, -.5, 0.5,   -.5, -.5, 0.5,   -.5, 0.5, 0.5,
+					0.5, 0.5, 0.5,   -.5, 0.5, 0.5,   -.5, -.5, 0.5,
+					-.5, -.5, 0.5,   0.5, -.5, 0.5,   0.5, 0.5, 0.5,
 					
 					// back
-					0.5, 0.5, -.5,   -.5, 0.5, -.5,   -.5, -.5, -.5,
-					0.5, 0.5, -.5,   -.5, -.5, -.5,   0.5, -.5, -.5,
-					
-					// our left
-					-.5, 0.5, -.5,   -.5, 0.5, 0.5,   -.5, -.5, 0.5,
-					-.5, -.5, 0.5,   -.5, -.5, -.5,   -.5, 0.5, -.5,
-					
-					// our right
-					0.5, -.5, 0.5,   0.5, 0.5, 0.5,   0.5, 0.5, -.5,
-					0.5, 0.5, -.5,   0.5, -.5, -.5,   0.5, -.5, 0.5,
+					0.5, 0.5, -.5,   0.5, -.5, -.5,   -.5, -.5, -.5,
+					-.5, -.5, -.5,   -.5, 0.5, -.5,   0.5, 0.5, -.5,
 					
 					// top
-					0.5, 0.5, 0.5,   -.5, 0.5, 0.5,   -.5, 0.5, -.5,
-					-.5, 0.5, -.5,   0.5, 0.5, -.5,   0.5, 0.5, 0.5,
+					0.5, 0.5, 0.5,   0.5, 0.5, -.5,   -.5, 0.5, -.5,
+					-.5, 0.5, -.5,   -.5, 0.5, 0.5,   0.5, 0.5, 0.5,
 					
 					// bottom
-					0.5, -.5, 0.5,   0.5, -.5, -.5,   -.5, -.5, -.5,
-					-.5, -.5, -.5,   -.5, -.5, 0.5,   0.5, -.5, 0.5,
+					0.5, -.5, 0.5,   -.5, -.5, 0.5,   -.5, -.5, -.5,
+					-.5, -.5, -.5,   0.5, -.5, -.5,   0.5, -.5, 0.5,
+					
+					// our right
+					0.5, -.5, 0.5,   0.5, -.5, -.5,   0.5, 0.5, -.5,
+					0.5, 0.5, -.5,   0.5, 0.5, 0.5,   0.5, -.5, 0.5,
+					
+					
+					// our left
+					-.5, -.5, 0.5,   -.5, 0.5, 0.5,   -.5, 0.5, -.5,
+					-.5, 0.5, -.5,   -.5, -.5, -.5,   -.5, -.5, 0.5,//*/
 				]);
 				
 				var cubeVertices = gl.createBuffer();
@@ -369,6 +370,7 @@
 				this.scale = scale || 1;
 				this.color = new Color(0, 1, 0, 1);
 				this.borderColor = new Color(1, 0, 0, 1);
+				this.borderScale = 1;
 				this.rotation = new Vec3(0,0,0);
 				//this.torque = new Vec3(0,0,0);
 				this.position = position || new Vec3(0,0,0);
@@ -395,7 +397,9 @@
 				return this;
 			};
 
-			Cube.prototype.draw = function(gl, matrixStack){
+			Cube.prototype.draw = function(gl, matrixStack, mode){
+
+				if(mode === undefined) mode = gl.TRIANGLES;
 				
 				var compoundPosition = Mat4.identity();
 				
@@ -408,10 +412,10 @@
 				gl.vertexAttribPointer(this.shader.vertexPositionAttribute, this.mesh.itemSize, gl.FLOAT, false, 0, 0);
 				gl.enableVertexAttribArray(this.shader.vertexPositionAttribute);
 				gl.uniformMatrix4fv(this.shader.mvMatrixUniform, false, Mat4.mult(compoundPosition, this.mvMatrix).M);
-				gl.uniform1f(this.shader.borderScale, 1.5/this.scale/100);
+				gl.uniform1f(this.shader.borderScale, this.borderScale/this.scale/100);
 				gl.uniform4fv(this.shader.color, new Float32Array(this.color.toArray()));
 				gl.uniform4fv(this.shader.borderColor, new Float32Array(this.highlighted ? this.highlightedBorderColor.toArray() : this.borderColor.toArray()));
-				gl.drawArrays(gl.TRIANGLES, 0, this.mesh.numItems);
+				gl.drawArrays(mode, 0, this.mesh.numItems);
 
 				return this;
 			};
@@ -481,6 +485,7 @@ Left: move box within plane of face under cursor<br/>
     uniform vec4 uBorderColor;
     uniform bool uShowWireframe;
     uniform bool uFillFaces;
+    uniform bool uCullFaces;
 
 	varying vec4 vPos;
     varying vec4 vColor;
@@ -503,9 +508,7 @@ Left: move box within plane of face under cursor<br/>
 
 		if(uFillFaces){
 			c = c + (1.0 - m) * vColor;
-		}else if(m < 0.5){
-			discard;
-		}
+		} else if(m < 0.5 && !uCullFaces) discard;
 
 		gl_FragColor = c;
     }
@@ -531,7 +534,7 @@ Left: move box within plane of face under cursor<br/>
 			stageRotation,
 			stageScale = Mat4.uniformScale(1),
 			stageRotationAngle = {x:0, y:0},
-			color_fill = new Color(0,1,0,1),
+			color_fill = new Color(0,1,0,document.querySelector("#tran").checked?0.5:1),
 			objectsToRender = [],
 			cameraPosition = new Vec3(0, 0, -2.5),
 			canvas = document.querySelector('canvas'),
@@ -636,7 +639,7 @@ Left: move box within plane of face under cursor<br/>
 
 			if(cullBackfaces){
 				gl.enable(gl.CULL_FACE);
-				gl.cullFace(gl.FRONT); // TODO: reverse cube vertex declaration order to make Left-Handed
+				gl.cullFace(gl.BACK); // TODO: reverse cube vertex declaration order to make Left-Handed
 			}else gl.disable(gl.CULL_FACE);
 
 			if(color_fill.a < 1){
@@ -651,7 +654,8 @@ Left: move box within plane of face under cursor<br/>
 
 			gl.uniformMatrix4fv(boxShader.pMatrixUniform, false,  cameraProjection.M);
 			gl.uniform1f(boxShader.showWireframe, drawWireframe);	
-			gl.uniform1f(boxShader.fillFaces, fillFrontfaces);	
+			gl.uniform1f(boxShader.fillFaces, fillFrontfaces);
+			gl.uniform1f(boxShader.cullFaces, cullBackfaces);
 
 			stageRotation = Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), stageRotationAngle.x);
 			stageRotation = Mat4.mult(Mat4.rotationAroundOrigin(new Vec3(1, 0, 0), stageRotationAngle.y), stageRotation)
@@ -710,6 +714,7 @@ Left: move box within plane of face under cursor<br/>
 			shaderProgram.borderColor = gl.getUniformLocation(shaderProgram, "uBorderColor");
 			shaderProgram.showWireframe = gl.getUniformLocation(shaderProgram, "uShowWireframe");
 			shaderProgram.fillFaces = gl.getUniformLocation(shaderProgram, "uFillFaces");
+			shaderProgram.cullFaces = gl.getUniformLocation(shaderProgram, "uCullFaces");
 			shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
 
 			return shaderProgram;
