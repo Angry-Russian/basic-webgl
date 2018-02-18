@@ -560,12 +560,15 @@ Left: move box within plane of face under cursor<br/>
 			stageRotation = Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), Math.PI/4 * 1);
 			stageScale = Mat4.uniformScale(0.85);
 		};
+
 		/**
 		 * Initializes scene, creates VertexBuffers if needed and 
 		 * @param {WebGlRenderingContext} gl gl context provided by canvas.getContext('experimental-webgl')
 		 * @return	{null}
 		 */
 		function initializeScene(gl){
+
+			var originalOrder = 0;
 
 			clearInterval(drawLoop);
 			while(isDrawing){
@@ -581,9 +584,10 @@ Left: move box within plane of face under cursor<br/>
 				for ( var zi=0; zi<3; zi++ ) {
 					var x = xi*1.5 - 1.5;
 					var y = (xi===1 ? 1.5 : 0) + (zi===1 ? 1.5 : 0) - 1.5;
-					var z = zi*1.5;
+					var z = zi*1.5 - 1.5;
 
 					var c = new Cube3D(gl, boxShader, new Vec3(x, y, z), 0.95); // scale, shader
+					c.originalOrder = originalOrder++;
 					c.color = color_fill;//generateColorHSL(.33, 1, 0.5);
 					c.borderColor = generateColorHSL(0, .15, 0.25);
 					c.highlightedBorderColor = generateColorHSL(0, .5, 0.5);
@@ -595,6 +599,7 @@ Left: move box within plane of face under cursor<br/>
 						y = 1.5;
 
 						c = new Cube3D(gl, boxShader, new Vec3(x, y, z), 1/12); // scale, shader
+						c.originalOrder = originalOrder++;
 						c.color = color_fill;//generateColorHSL(.33, 1, 0.5);
 						c.borderColor = generateColorHSL(0, .15, 0.25);
 						c.highlightedBorderColor = generateColorHSL(0, .5, 0.5);
@@ -605,6 +610,7 @@ Left: move box within plane of face under cursor<br/>
 				}
 			}
 		};
+
 		/**
 		 * Draws current scene, using objects stored in the global objectsToRender variable
 		 * @return {null}
@@ -625,7 +631,7 @@ Left: move box within plane of face under cursor<br/>
 
 			if(color_fill.a < 1){
 				gl.enable(gl.BLEND);
-				gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_DST_ALPHA);
+				gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA );
 				gl.disable(gl.DEPTH_TEST);
 				// TODO: sort cubes by depth
 			}else{
@@ -637,13 +643,23 @@ Left: move box within plane of face under cursor<br/>
 
 			stageRotation = Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), stageRotationAngle.x);
 			stageRotation = Mat4.mult(Mat4.rotationAroundOrigin(new Vec3(1, 0, 0), stageRotationAngle.y), stageRotation)
-			var cameraPositionMatrix = Mat4.translation(cameraPosition);
-			for(var o of objectsToRender){
-				o.update().draw(gl, [cameraRotation, cameraPositionMatrix, stageRotation, stageScale]);
-			}
+
+			var compoundMatrix = Mat4.identity();
+			compoundMatrix = Mat4.mult(compoundMatrix, cameraRotation);
+			compoundMatrix = Mat4.mult(compoundMatrix, Mat4.translation(cameraPosition));
+			compoundMatrix = Mat4.mult(compoundMatrix, stageRotation);
+			compoundMatrix = Mat4.mult(compoundMatrix, stageScale);
+
+			if(sortPolygons) // sort by depth to fix transparency
+				objectsToRender.sort((a, b) => compoundMatrix.multVec3(a.position).z - compoundMatrix.multVec3(b.position).z);
+			else // revert to creation order
+				objectsToRender.sort((a, b) => a.originalOrder - b.originalOrder);
+
+			objectsToRender.forEach((o, i) => o.update().draw(gl, [compoundMatrix]));
 
 			isDrawing = false;
 		};
+
 		/**
 		 * Reads HTML elements with ids matching the provided vertexId (for vertex shader) and fragmentId (for fragment shader) and returns compiled ShaderProgram
 		 * @param {WebGLRenderingContext} gl WebGL context used for creating shaders
@@ -684,6 +700,7 @@ Left: move box within plane of face under cursor<br/>
 
 			return shaderProgram;
 		};
+
 		/**
 		 * Creates basic projection matrix for camera
 		 * @param {float} f Field of View in degrees
@@ -704,6 +721,7 @@ Left: move box within plane of face under cursor<br/>
 				0,   0, near * far * rangeInv,         5
 			];
 		};
+
 		/**
 		 * Converts HSLA into RGBA
 		 * @param {float} h hue, [0,1]
@@ -735,7 +753,7 @@ Left: move box within plane of face under cursor<br/>
 		    }
 
 		    return new Color(r, g, b, a||1);
-		}
+		};
 
 		/**
 		 * Sets up buttons and mouse inputs
@@ -785,13 +803,16 @@ Left: move box within plane of face under cursor<br/>
 				return false;
 			};
 			canvas.oncontextmenu = ()=>false;
-		}
+		};
+
 		// uncomment for debugging
 		
 		window.gl = gl;
 		window.resetCamera = resetCamera;
 		window.initializeScene = initializeScene;
-		window.redraw = redraw;//*/
+		window.redraw = redraw;
+		window.objectsToRender = objectsToRender;
+		//*/
 
 	})();
 </script>
