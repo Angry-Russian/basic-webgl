@@ -479,23 +479,35 @@ Left: move box within plane of face under cursor<br/>
 
     uniform float ufBorderScale;
     uniform vec4 uBorderColor;
+    uniform bool uShowWireframe;
+    uniform bool uFillFaces;
 
 	varying vec4 vPos;
     varying vec4 vColor;
 	
     void main(void) {
 
-		float n;
-		float m;
+		float m = 0.0;
 		float x = abs(vPos.x);
 		float y = abs(vPos.y);
 		float z = abs(vPos.z);
 
-		m = max(min(x, y), min(y, z));
-		m = max(m, min(x, z));
-		m = floor(m + .5 + ufBorderScale);
+		vec4 c = vec4(0);
 
-		gl_FragColor = (1.0 - m) * vColor +  m * uBorderColor;
+		if(uShowWireframe){
+			m = max(min(x, y), min(y, z));
+			m = max(m, min(x, z));
+			m = floor(m + .5 + ufBorderScale);
+			c = c + m * uBorderColor;
+		}
+
+		if(uFillFaces){
+			c = c + (1.0 - m) * vColor;
+		}else if(m < 0.5){
+			discard;
+		}
+
+		gl_FragColor = c;
     }
 </script>
 
@@ -543,6 +555,7 @@ Left: move box within plane of face under cursor<br/>
 		resetCamera();
 		setInputs();
 		initializeScene(gl);
+		redraw();
 
 		/**
 		 * (Re-)Creates default camera and stage matrices
@@ -637,6 +650,8 @@ Left: move box within plane of face under cursor<br/>
 			}
 
 			gl.uniformMatrix4fv(boxShader.pMatrixUniform, false,  cameraProjection.M);
+			gl.uniform1f(boxShader.showWireframe, drawWireframe);	
+			gl.uniform1f(boxShader.fillFaces, fillFrontfaces);	
 
 			stageRotation = Mat4.rotationAroundOrigin(new Vec3(0, 1, 0), stageRotationAngle.x);
 			stageRotation = Mat4.mult(Mat4.rotationAroundOrigin(new Vec3(1, 0, 0), stageRotationAngle.y), stageRotation)
@@ -693,6 +708,8 @@ Left: move box within plane of face under cursor<br/>
 			shaderProgram.borderScale = gl.getUniformLocation(shaderProgram, "ufBorderScale");
 			shaderProgram.color = gl.getUniformLocation(shaderProgram, "uFaceColor");
 			shaderProgram.borderColor = gl.getUniformLocation(shaderProgram, "uBorderColor");
+			shaderProgram.showWireframe = gl.getUniformLocation(shaderProgram, "uShowWireframe");
+			shaderProgram.fillFaces = gl.getUniformLocation(shaderProgram, "uFillFaces");
 			shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
 
 			return shaderProgram;
