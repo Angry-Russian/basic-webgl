@@ -544,9 +544,6 @@ Left: move box within plane of face under cursor<br/>
 		setInputs();
 		initializeScene(gl);
 
-		var drawLoop = setInterval(redraw, 1000/60); // call redraw() 60 times per second
-		// TODO: make a more sophisticated render handler.
-
 		/**
 		 * (Re-)Creates default camera and stage matrices
 		 * @return {null}
@@ -570,11 +567,11 @@ Left: move box within plane of face under cursor<br/>
 
 			var originalOrder = 0;
 
-			clearInterval(drawLoop);
 			while(isDrawing){
 				// wait for drawing to end
 			}
 
+			// delete all existing objects
 			for(var i in objectsToRender)
 				delete objectsToRender[i];
 			
@@ -759,15 +756,15 @@ Left: move box within plane of face under cursor<br/>
 		 * Sets up buttons and mouse inputs
 		 */
 		function setInputs(){
-			console.log('updating options');
-			document.querySelector("#pers").onchange = function(){ resetCamera(this.checked); }
-			document.querySelector("#cull").onchange = function(){ cullBackfaces = this.checked; }
-			document.querySelector("#wire").onchange = function(){ drawWireframe = this.checked; }
-			document.querySelector("#fill").onchange = function(){ fillFrontfaces = this.checked; }
-			document.querySelector("#tran").onchange = function(){ color_fill.a = this.checked?0.5:1.0; }
-			document.querySelector("#sort").onchange = function(){ sortPolygons = this.checked; }
-			document.querySelector("#axes").onchange = function(){ drawAxes = this.checked; }
-			document.querySelector("#targ").onchange = function(){ drawTarget = this.checked; }
+
+			document.querySelector("#pers").onchange = function(){ resetCamera(this.checked); 			 redraw();}
+			document.querySelector("#cull").onchange = function(){ cullBackfaces = this.checked; 		 redraw();}
+			document.querySelector("#wire").onchange = function(){ drawWireframe = this.checked; 		 redraw();}
+			document.querySelector("#fill").onchange = function(){ fillFrontfaces = this.checked; 		 redraw();}
+			document.querySelector("#tran").onchange = function(){ color_fill.a = this.checked?0.5:1.0;	 redraw();}
+			document.querySelector("#sort").onchange = function(){ sortPolygons = this.checked; 		 redraw();}
+			document.querySelector("#axes").onchange = function(){ drawAxes = this.checked; 			 redraw();}
+			document.querySelector("#targ").onchange = function(){ drawTarget = this.checked; 			 redraw();}
 
 			var dragging = false;
 			canvas.onmousemove = function(e){
@@ -776,12 +773,10 @@ Left: move box within plane of face under cursor<br/>
 						case 1 :
 							stageRotationAngle.x += e.movementX / canvas.width * 5;
 							stageRotationAngle.y += e.movementY / canvas.height * 5;
-							return false;
 						break;
 						case 2 :
 							cameraPosition.x += e.movementX / canvas.width * 4;
 							cameraPosition.y -= e.movementY / canvas.height * 4;
-							return false;
 						break;
 						case 3 :
 							cameraPosition.z -= e.movementY / canvas.height * 4;
@@ -791,6 +786,7 @@ Left: move box within plane of face under cursor<br/>
 						// TODO: grab and move box
 					}
 				}
+				redraw();
 			};
 			canvas.onmousedown = function(e){
 				e.preventDefault();
