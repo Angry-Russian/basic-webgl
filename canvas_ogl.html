@@ -671,7 +671,22 @@ Left: move box within plane of face under cursor<br/>
 			else // revert to creation order
 				objectsToRender.sort((a, b) => a.originalOrder - b.originalOrder);
 
-			objectsToRender.forEach((o, i) => o.update().draw(gl, [compoundMatrix]));
+			objectsToRender.forEach((o, i) => {
+				if(drawWireframe && (!cullBackfaces || fillFrontfaces && color_fill.a >= 1)){
+					// hack: replace cube's crappy aliased border with the smooth gl.LINE_LOOP border
+					var oldBorder = o.borderScale;
+					o.borderScale = 0;
+					o.update().draw(gl, [compoundMatrix]);
+					o.borderScale = oldBorder;
+				}else //*/
+					o.update().draw(gl, [compoundMatrix]);
+
+				if(drawWireframe && (!cullBackfaces || fillFrontfaces && color_fill.a >= 1)){
+					// NOTE: gl.LINE_LOOP doesn't have "faces" so cannot be backface-culled; only used when blending is off, or when we want to show the *full* wireframe
+					o.draw(gl, [compoundMatrix], gl.LINE_LOOP);
+				}
+			});
+
 
 			isDrawing = false;
 		};
